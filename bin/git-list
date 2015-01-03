@@ -1,0 +1,81 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Cwd;
+
+# Usage:        git-list [all|local|remote] [repos] [branches] [tags]
+#
+#
+# Description:  This command can be used as a data source for typical
+#               command line completion systems.
+#               It runs one or more git commands and combines the results
+#               into a single list of valid values.
+#               By default, all local branches and tags are returned.
+#
+# Author:       Stephen Riehm <japh@opensauce.de>
+# Date:         2010-02-11
+# Version:      1.0
+# Requirements: (tested)
+#               git     1.6.* .. 1.6.1.3
+#               perl    5.6.* .. 5.10.0
+
+# don't do anything if git isn't installed
+exit 0  unless grep( -x "$_/git", split( /:/, $ENV{'PATH'} ) );
+
+# also don't do anything if there isn't a .git directory in a parent directory
+my $repo_dir = cwd() . "/.";
+while( $repo_dir =~ s:/+[^/]*$:: )
+    {
+    last    if -d "${repo_dir}/.git";
+    exit 0  if $repo_dir eq '';
+    }
+
+my %parameters = map { $_ => 1 } @ARGV;
+
+# provide some simple defaults
+if( keys %parameters == 0 )
+    {
+    $parameters{'branches'}++;
+    $parameters{'tags'}++;
+    }
+
+my $branch_selector = '';
+$branch_selector = '-a' if $parameters{'all'};
+$branch_selector = '-r' if $parameters{'remote'};
+
+# ignore git's errors
+close( STDERR );
+
+my %completions = ();
+
+if( $parameters{'branches'} )
+    {
+    foreach( qx{ git branch $branch_selector } )
+        {
+        s/^\*?\s*|[\n\r]*$//g;
+        $completions{$_}++;
+        }
+    }
+
+if( $parameters{'tags'} )
+    {
+    foreach( qx{ git tag -l } )
+        {
+        s/[\n\r]*$//;
+        $completions{$_}++
+        }
+    }
+
+if( $parameters{'repos'} )
+    {
+    foreach( qx{ git remote } )
+        {
+        s/[\n\r]*$//;
+        $completions{$_}++
+        }
+    }
+
+printf "%s\n", join( ' ', sort keys %completions );
+
+exit 0;

@@ -1,0 +1,47 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Cwd;
+
+# Usage:        git-todo
+#
+# Description:  Scan the current directory looking for TODO: markers
+#               By default, markers are expected to have the following format:
+#               TODO: {username} [{date}] {details}
+#
+# Author:       Stephen Riehm <japh@opensauce.de>
+# Date:         2010-02-12
+# Version:      1.0
+
+# don't do anything if git isn't installed
+exit 0  unless grep( -x "$_/git", split( /:/, $ENV{'PATH'} ) );
+
+# also don't do anything if there isn't a .git directory in a parent directory
+my $repo_dir = cwd() . "/.";
+while( $repo_dir =~ s:/+[^/]*$:: )
+    {
+    last    if -d "${repo_dir}/.git";
+    exit 0  if $repo_dir eq '';
+    }
+
+my $username = $ENV{TODONAME} || getpwuid( $< );
+my $print_header = {};
+my $sub;
+foreach my $line ( qx{ git grep -ip 'TODO: $username' } )
+{
+    if( $line =~ /^(?:[^=:]*)=(.*?)(:?\s*{.*)?[\n\r]*$/ )
+    {
+        $sub = $1;
+        $sub =~ s/^sub\s+(.*)/$1()/;
+        next;
+    }
+
+    my ( $file, $todo ) = ( $line =~ /^([^:]+):.*TODO:\s+$username\s+(.*?)[\n\r]*$/i );
+
+    print "$file\n"     unless $print_header->{$file}++;
+    print "\t\t$sub\n"  unless $print_header->{"<$file><$sub>"}++;
+    print "\t\t\t\t$todo\n";
+}
+
+exit 0;
