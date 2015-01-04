@@ -1,0 +1,40 @@
+#
+# Git related completions
+#
+# Please Note:
+#   This list is not intended to be in any way exhaustive!
+#   The intention is to make the things I do regularly easy...
+#   anything else I have to look up the help for anyway :-)
+#
+#   You may note that 'git pull' is not included - I prefer
+#   'git remote update' or 'git fetch' followed by 'git show-branch'
+#   and 'git difftool' or 'git mergetool' - just my personal prefernce :-)
+#
+# Author:       Stephen Riehm <japh@opensauce.de>
+# Date:         2010-02-11
+# Version:      1.0
+#
+
+set git_cmds    = (                                                             \
+                    add bisect blame branch checkout cherry-pick clean clone    \
+                    commit describe difftool fetch grep help init log ls-files  \
+                    mergetool mv push rebase remote rm show show-branch status  \
+                    submodule tag                                               \
+                    )
+
+complete git    "p/1/(${git_cmds})/"                                            \
+                'n/branch/`git-list all branches`/'                             \
+                'n/checkout/`git-list all branches tags`/'                      \
+                'n/clean/(-dXn -dXf)/'                                          \
+                'n/diff/`git-list all branches tags`/'                          \
+                'n/fetch/`git-list repos`/'                                     \
+                "n/help/(${git_cmds})/"                                         \
+                'n/init/( --bare --template= )/'                                \
+                'n/merge/`git-list all branches tags`/'                         \
+                'n/push/`git-list repos`/'                                      \
+                'N/remote/`git-list repos`/'                                    \
+                'n/remote/( show add rm prune update )/'                        \
+                'n/show-branch/`git-list all branches`/'                        \
+                'n/stash/( apply branch clear drop list pop show )/'            \
+                'n/submodule/( add foreach init status summary sync update )/'
+

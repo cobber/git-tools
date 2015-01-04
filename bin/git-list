@@ -53,7 +53,7 @@ if( $parameters{'branches'} )
     {
     foreach( qx{ git branch $branch_selector } )
         {
-        s/^\*?\s*|[\n\r]*$//g;
+        s/^\*?\s*(remotes\/)?|[\n\r]*$//g;
         $completions{$_}++;
         }
     }

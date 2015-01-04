@@ -11,7 +11,7 @@ use POSIX   qw( strftime );
 #               tcsh:   alias precmd 'set prompt=`git-prompt \!`'
 #
 #               interactive:
-#                   git-prompt [options] [on|off]
+#                   git-prompt [options] [on|off]   toggle prompt generation for the current git repository
 #
 #                   --configuration                 display the current configuration and quit
 #                   --max_status_delay <seconds>    automatically disable status summaries if they take longer than <seconds>
@@ -27,10 +27,6 @@ use POSIX   qw( strftime );
 #               Any characters specified on the command line will be escaped,
 #               thus providing a workaround for tcsh users :-)
 #
-# Known Bugs:   if you remove a file, the flags '-' AND '?' appear - this is
-#               not intended, but fixing it would make this script MUCH more
-#               complicated than it is now.
-#
 # Author:       Stephen Riehm <japh@opensauce.de>
 # Date:         2009-01-30
 # Version:      1.0
@@ -39,62 +35,77 @@ use POSIX   qw( strftime );
 #               perl    5.6.* .. 5.10.0
 
 my $repo_id            = get_repo_id() or exit 0;
-my $preferences_file   = "$ENV{'HOME'}/.git_prompt";
+my $preferences_file   = "$ENV{HOME}/.git_prompt";
 my $all_preferences    = load_preferences(
-                                        'file'     => $preferences_file,
-                                        'repo_id'  => $repo_id,
-                                        'defaults' => { # 'factory' defaults
-                                                        'escape_characters'   => '',
-                                                        'max_status_delay'    => 3,         # seconds
-                                                        'show_status_summary' => 'yes',     # yes, no, or maybe
-                                                        'try_again_delay'     => 0,
-                                                        'number_of_timeouts'  => 0,
-                                                        'last_timeout'        => 0,
+                                        file     => $preferences_file,
+                                        repo_id  => $repo_id,
+                                        defaults => { # 'factory' defaults
+                                                        escape_characters   => $ENV{SHELL} =~ /csh/i ? '!' : '',
+                                                        max_status_delay    => 3,         # seconds
+                                                        show_status_summary => 'yes',     # yes, no, or maybe
+                                                        try_again_delay     => 0,
+                                                        number_of_timeouts  => 0,
+                                                        last_timeout        => 0,
                                                         },
-                                        'ignore'   => {
+                                        ignore   => {
                                                         # only for legacy config files
-                                                        'last_update'           => 1,
-                                                        'last_timeout_duration' => 1,
+                                                        last_update           => 1,
+                                                        last_timeout_duration => 1,
                                                         },
                                         );
 
-my $active_preferences = $all_preferences->{'ACTIVE'};
+my $active_preferences = $all_preferences->{ACTIVE};
 
-GetOptions( $active_preferences,
+my $cli_preferences = {};
+GetOptions( $cli_preferences,
         'configuration',                    # display the current configuration and quit
         'escape_characters|escape_chars:s', # output a \ before these characters to avoid confusing the shell
         'max_status_delay=i',               # how long to wait before automatically disabling status details in prompt
         'show_status_summary',              # set to 0 if git status takes too long to run in the command prompt
+        'help',
         )
     or show_usage();
 
-if( delete $active_preferences->{'configuration'} )
+show_usage()    if $cli_preferences->{help};
+
+my $command = shift || undef;
+$command //= 'show_configuration'    if delete $cli_preferences->{configuration};
+$command //= 'update_configuration'  if exists $cli_preferences->{escape_characters};
+$command //= 'update_configuration'  if exists $cli_preferences->{max_status_delay};
+$command //= 'prompt';
+
+$active_preferences->{show_status_summary} = $cli_preferences->{show_status_summary} if exists $cli_preferences->{show_status_summary};
+$active_preferences->{escape_characters}   = $cli_preferences->{escape_characters}   if exists $cli_preferences->{escape_characters};
+$active_preferences->{max_status_delay}    = $cli_preferences->{max_status_delay}    if exists $cli_preferences->{max_status_delay};
+
+if( $active_preferences->{show_status_summary} =~ /(\d+)/ )
     {
-    show_preferences( 'all_preferences' => $all_preferences );
+    $active_preferences->{show_status_summary} = $1 ? 'yes' : 'no';
+    }
+
+if( $command =~ /^(?:on|off)$/i )
+    {
+    $active_preferences->{show_status_summary} = ( $command =~ /on/i ) ? 'yes' : 'no';
+    printf "git status prompt turned %s for %s\n", uc( $command ), $repo_id;
+    }
+elsif( 'show_configuration' =~ /${command}/i )  # backward expression to allow user to type any substring
+    {
+    show_preferences( preferences => $all_preferences );
     exit 0;
     }
-
-my $command = shift || 'prompt';
-
-if( $command =~ /on|off/i )
+elsif( 'update_configuration' =~ /${command}/i )  # backward expression to allow user to type any substring
     {
-    $active_preferences->{'show_status_summary'} = ( $command =~ /on/i ) ? 'yes' : 'no';
+    show_preferences( preferences => $active_preferences );
     }
-
-if( $active_preferences->{'show_status_summary'} =~ /(\d+)/ )
+elsif( 'prompt' =~ /${command}/i )              # backward expression to allow user to type any substring
     {
-    $active_preferences->{'show_status_summary'} = $1 ? 'yes' : 'no';
-    }
-
-if( $command =~ /prompt/i )
-    {
-    generate_prompt( 'active_preferences' => $active_preferences );
+    generate_prompt( active_preferences => $active_preferences );
     }
 
 store_preferences(
-                'file'            => $preferences_file,
-                'repo_id'         => $repo_id,
-                'all_preferences' => $all_preferences,
+                file            => $preferences_file,
+                repo_id         => $repo_id,
+                all_preferences => $all_preferences,
                 );
 
 exit 0;
@@ -102,7 +113,7 @@ exit 0;
 sub get_repo_id
     {
     # don't do anything if git isn't installed
-    return  unless grep( -x "$_/git", split( /:/, $ENV{'PATH'} ) );
+    return  unless grep( -x "$_/git", split( /:/, $ENV{PATH} ) );
 
     # also don't do anything if there isn't a .git directory in a parent directory
     my $repo_dir = cwd() . "/.";
@@ -120,44 +131,63 @@ sub get_repo_id
 sub generate_prompt
     {
     my $params             = { @_ };
-    my $active_preferences = $params->{'active_preferences'};
+    my $active_preferences = $params->{active_preferences};
 
     # ignore git's errors
     close( STDERR );
 
+    # status flags:
+    #   ## <branch>
+    #   XY <file>
+    # if X is not a space, set the '!' flag (something is staged)
+    # if Y is not a space, set a flag depending on the character:
+    #       A   =>  '+' (there are untracked files)
+    #       D   =>  '-' (some tracked files are missing)
+    # anything else '?' (something has changed)
     my %flag_map = (
-            'committed'   => '!',   # changes to be committed:  section
-            'updated'     => '?',   # changed but not updated:  section
-            'files'       => '+',   # untracked files:          section
-            'deleted'     => '-',   # deleted: <file>           lines
-            'undefined'   => '~',   # status not checked, is undefined
+            staged    => '!',
+            updated   => '?',
+            added     => '+',
+            deleted   => '-',
+            undefined => '~',   # status not checked, is undefined
             );
-    my @ordered_flags = @flag_map{qw( files deleted updated committed undefined )};
+    my @ordered_flags = @flag_map{qw( added deleted updated staged undefined )};
 
     my $branch = undef;
-    my @status = ();
+    my %flag = ();
 
-    if( $active_preferences->{'show_status_summary'} eq 'maybe'
-        and time() > ( $active_preferences->{'last_timeout'} + $active_preferences->{'try_again_delay'} )
+    if( $active_preferences->{show_status_summary} eq 'maybe'
+        and time() > ( $active_preferences->{last_timeout} + $active_preferences->{try_again_delay} )
         )
         {
-        $active_preferences->{'show_status_summary'} = 'yes';
+        $active_preferences->{show_status_summary} = 'yes';
         }
 
-    if( $active_preferences->{'show_status_summary'} eq 'yes' )
+    if( $active_preferences->{show_status_summary} eq 'yes' )
         {
         my $start_time = time();
-        ( $branch, @status ) = map { ( /(\w+):/i or /on branch (\S+)/i ) and exists $flag_map{$1} ? $flag_map{$1} : $1 } qx{ git status };
-        sleep 5;
-        my $duration = time() - $start_time;
-        if( $active_preferences->{'max_status_delay'} and $duration > $active_preferences->{'max_status_delay'} )
+
+        foreach my $line ( qx{ git status --porcelain --branch } )
             {
-            $active_preferences->{'show_status_summary'}    = 'maybe';
-            $active_preferences->{'last_timeout_duration'}  = $duration;
-            $active_preferences->{'number_of_timeouts'}    += 1;
-            $active_preferences->{'last_timeout'}           = time();
-            $active_preferences->{'try_again_delay'}        = $duration / $active_preferences->{'max_status_delay'}
-                                                              * $active_preferences->{'number_of_timeouts'} * 60; # seconds
+            if( $line =~ /##\s+(?<branch>\S+?)(?:\.\.\..*)?\s*$/ )
+                {
+                $branch = $+{branch};
+                next;
+                }
+            $line =~ /^(?<idx>.)(?<ws>.)/;
+            $flag{'!'}++                             if $+{idx} ne ' ';
+            $flag{ $+{ws} =~ tr/?ADCMU/++\-???/r }++ if $+{ws}  ne ' ';
+            }
+
+        my $duration = time() - $start_time;
+        if( $active_preferences->{max_status_delay} and $duration > $active_preferences->{max_status_delay} )
+            {
+            $active_preferences->{show_status_summary}    = 'maybe';
+            $active_preferences->{last_timeout_duration}  = $duration;
+            $active_preferences->{number_of_timeouts}    += 1;
+            $active_preferences->{last_timeout}           = time();
+            $active_preferences->{try_again_delay}        = $duration / $active_preferences->{max_status_delay}
+                                                            * $active_preferences->{number_of_timeouts} * 60; # seconds
             }
         }
     else
@@ -167,7 +197,7 @@ sub generate_prompt
         chomp( $branch );
         $branch = undef     if $branch =~ /\(no branch\)/i;
         $branch = $1        if $branch =~ /\(detached from (.*)\)/i; # this started about v1.8.3 ?
-        @status = ( $flag_map{'undefined'} );
+        $flag{ $flag_map{undefined} }++;
         }
 
     # if git branch or git status didn't return a useful result - see if the user has
@@ -186,35 +216,36 @@ sub generate_prompt
         }
 
     # determine which flags to display (if any)
-    my %flag         =  ();
-   $flag{$_}++      foreach @status;
     my $flags        =  join( '', map { exists( $flag{$_} ) and $_ } @ordered_flags );      # ensure the flags always appear in the same order
-    my $escape_chars =  $active_preferences->{'escape_characters'};                         # only for tcsh users
-   $flags        =~ s/[$escape_chars]/\\$&/g                if $escape_chars;           # only for tcsh users
+    my $escape_chars =  $active_preferences->{escape_characters};                           # only for tcsh users
+    $flags           =~ s/[$escape_chars]/\\$&/g                if $escape_chars;           # only for tcsh users
 
     # generate  the prompt
     printf "(%s%s)", $branch, ( $flags ? "[$flags]" : "" )      if $branch;
+
+    return;
     }
 
 sub show_preferences
     {
     my $params = { @_ };
-    print Dump( $params->{'all_preferences'} );
+    print "Configuration:\n";
+    print Dump( $params->{preferences} );
     }
 
 sub load_preferences
     {
     my $params          = { @_ };
-    my $preference_file = $params->{'file'};
-    my $defaults        = $params->{'defaults'};
-    my $ignore          = $params->{'ignore'};
-    my $repo_id         = $params->{'repo_id'};
+    my $preference_file = $params->{file};
+    my $defaults        = $params->{defaults};
+    my $ignore          = $params->{ignore};
+    my $repo_id         = $params->{repo_id};
 
-    my $all_preferences    = ( -e $preference_file ) ? LoadFile( $preference_file ) : { 'GLOBAL' => $defaults };
+    my $all_preferences    = ( -e $preference_file ) ? LoadFile( $preference_file ) : { GLOBAL => $defaults };
     my $active_preferences = { %{$defaults} };
 
-    $all_preferences->{'GLOBAL'}{$_} = $defaults->{$_}  foreach grep( ( not exists $all_preferences->{'GLOBAL'}{$_} ), keys %{$defaults} );
-    $all_preferences->{'ACTIVE'}     = $active_preferences;
+    $all_preferences->{GLOBAL}{$_} = $defaults->{$_}  foreach grep( ( not exists $all_preferences->{GLOBAL}{$_} ), keys %{$defaults} );
+    $all_preferences->{ACTIVE}     = $active_preferences;
 
     foreach my $preference_set_index ( 'GLOBAL', $repo_id )
         {
@@ -244,12 +275,12 @@ sub load_preferences
 sub store_preferences
     {
     my $params          = { @_ };
-    my $file            = $params->{'file'};
-    my $all_preferences = $params->{'all_preferences'};
-    my $repo_id         = $params->{'repo_id'};
+    my $file            = $params->{file};
+    my $all_preferences = $params->{all_preferences};
+    my $repo_id         = $params->{repo_id};
 
-    my $global_preferences   = $all_preferences->{'GLOBAL'};
-    my $active_preferences   = delete $all_preferences->{'ACTIVE'}; # don't write these to disk
+    my $global_preferences   = $all_preferences->{GLOBAL};
+    my $active_preferences   = delete $all_preferences->{ACTIVE}; # don't write these to disk
     my $old_repo_preferences = delete $all_preferences->{$repo_id};
     my $new_repo_preferences = {};
 
@@ -269,9 +300,9 @@ sub store_preferences
         }
 
     # special case: escape_characters are always global
-    if( exists $new_repo_preferences->{'escape_characters'} )
+    if( exists $new_repo_preferences->{escape_characters} )
         {
-        $global_preferences->{'escape_characters'} = delete $new_repo_preferences->{'escape_characters'};
+        $global_preferences->{escape_characters} = delete $new_repo_preferences->{escape_characters};
         }
 
     # update the preference file if requested or required

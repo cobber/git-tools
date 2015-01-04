@@ -1,0 +1,21 @@
+#
+# Tcsh prompt with git details
+#
+#   The git-prompt script included in this repository provides
+#   a compact summary of the current git repository, IF THERE IS ONE.
+#
+#   If you are not currently in a git repository, the git-prompt script
+#   returns nothing as quick as possible.
+#
+#   Typically, it will show the current tag, branch or description, as well as
+#   some flags indicating if the working files have been modified in any way.
+#
+#   For example:
+#
+#
+# Author:       Stephen Riehm <japh@opensauce.de>
+# Date:         2010-02-11
+# Version:      1.0
+#
+
+alias precmd    'set prompt = "%{\r%}%S%n%s@%U%m%u: %T %c03`git-prompt` $lvl%#%s "'
