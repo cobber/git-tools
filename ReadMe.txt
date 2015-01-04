@@ -1,7 +1,8 @@
 Git Tools
 =========
 
-This is a small collection of scripts which I use to make my life with git a bit nicer.
+This is a small collection of scripts which I use to make my life with git a
+bit nicer.
 
 Assumptions
 -----------
@@ -14,23 +15,26 @@ The Tools
 ---------
 
     * git-list
+
         used to list various git-entities such as tags and branches in a
         completion-friendly manner.
         See the "Command Line Completions" section below and the
         tcsh/completions file for details.
 
     * git-prompt
+
         gathers information about the status of the git repo in the current
-        directory and produces a compact summary suitable for including
-        in a command line prompt.
+        directory and produces a compact summary suitable for including in a
+        command line prompt.
 
         DO NOT use this if your repos are so large that 'git status' takes a
         long time to run. I've used it successfully with repos <= 10,000
         commits, but your mileage may vary.
 
     * git-todo
-        runs 'git grep' on the current repository looking for TODO markers
-        of the form (without the <>'s):
+
+        runs 'git grep' on the current repository looking for TODO markers of
+        the form (without the <>'s):
 
             TODO: <username> <ISO Date> <comment...>
 
@@ -43,14 +47,20 @@ The Tools
 Command Line Completions
 ------------------------
 
-    Typically, shells are able to complete against file names or pre-prepared lists.
-    In order to complete things like git branches, tags or remote repository names
-    dynamically, you need to be able to run a program quickly (when the user triggers
-    completion) to provide the possible values without any adornment.
+    Typically, shells are able to complete against file names or pre-prepared
+    lists. In order to complete things like git branches, tags or remote
+    repository names dynamically, you need to be able to run a program quickly
+    (when the user triggers completion) to provide the possible values without
+    any adornment.
 
-    The tcsh/completions file contains the git related completion commands that I
-    personally use. They are not intended to be complete, but they are the commands
-    that I most often use.
+    The tcsh/completions file contains the git related completion commands that
+    I personally use. They are not intended to be complete, but they are the
+    commands that I most often use.
 
-    Please take the time to modify them to your taste before including them in your
-    environment.
+    Please take the time to modify them to your taste before including them in
+    your environment.
+
+Author
+------
+    
+    Stephen Riehm <japh@opensauce.de>
