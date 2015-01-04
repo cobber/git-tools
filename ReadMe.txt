@@ -7,9 +7,10 @@ bit nicer.
 Assumptions
 -----------
 
-    'git status' runs quickly (i.e. the user is not using huge, slow git repos)
-    Perl and a few additional modules are available
-    Git is available
+    'git status' runs quickly (i.e. the user is not using huge, slow git repos).
+    Perl and a few additional modules are available.
+    Git is available.
+    The user is comfortable manually configuring their command line environment.
 
 The Tools
 ---------
